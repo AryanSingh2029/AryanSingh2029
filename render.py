@@ -228,16 +228,29 @@ def merged_tile(p: dict, t: dict, wide: bool = False) -> str:
 SEAL = "M8 0l1.6 1.2 2-.1.6 1.9 1.6 1.2-.6 1.9.6 1.9-1.6 1.2-.6 1.9-2-.1L8 11.2 6.4 10l-2 .1-.6-1.9L2.2 7l.6-1.9-.6-1.9 1.6-1.2.6-1.9 2 .1zM5 12.6l-.9 3.4L6 15l1 1.6.6-3.6zm6 0l-.9 3.4L12 15l1 1.6.6-3.6z"
 
 
+def rosette(x: float, y: float, size: float, fill: str, field: str) -> str:
+    """Award rosette: a medal with two ribbon tails. (x, y) is the top-left corner."""
+    r = size * 0.34
+    cx, cy = x + size / 2, y + r + 1
+    tail_w, top, bot = size * 0.2, cy + r * 0.55, y + size
+    return (f'<path d="M{cx - tail_w * 1.6:.1f},{top:.1f}L{cx - tail_w * 1.9:.1f},{bot:.1f}'
+            f'L{cx - tail_w * 0.9:.1f},{bot - size * 0.12:.1f}L{cx - tail_w * 0.4:.1f},{bot:.1f}L{cx - tail_w * 0.1:.1f},{top:.1f}Z" fill="{fill}"/>'
+            f'<path d="M{cx + tail_w * 1.6:.1f},{top:.1f}L{cx + tail_w * 1.9:.1f},{bot:.1f}'
+            f'L{cx + tail_w * 0.9:.1f},{bot - size * 0.12:.1f}L{cx + tail_w * 0.4:.1f},{bot:.1f}L{cx + tail_w * 0.1:.1f},{top:.1f}Z" fill="{fill}"/>'
+            f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}" fill="{fill}"/>'
+            f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r * 0.55:.1f}" fill="none" stroke="{field}" stroke-width="{max(1, size / 14):.1f}"/>')
+
+
 def project_tile(p: dict, t: dict, wide: bool = False) -> str:
     W, H = (840, 150) if wide else (412, 160)
     b = [f'<rect x="0" y="0" width="5" height="{H}" fill="{t["own"]}"/>']
     b.append(T(28, 34, p["tech"], "t", 13, t["slate"]))
     right = W - 24
     if p.get("patent"):
-        label = "Patent published"
+        label = "Patent pending"
         lw = text_width(label, "strong", 12.5)
         b.append(T(right, 34, label, "s", 12.5, t["own"], "end"))
-        b.append(icon(SEAL, right - lw - 20, 21, 15, t["own"]))
+        b.append(rosette(right - lw - 20, 20, 15, t["own"], t["field"]))
     elif p.get("stars"):
         b.append(T(right, 34, fmt_stars(p["stars"]), "s", 13, t["ink"], "end"))
     size = 24 if wide else 21
@@ -246,3 +259,20 @@ def project_tile(p: dict, t: dict, wide: bool = False) -> str:
     for i, line in enumerate(wrap(p["blurb"], "text", 14 if wide else 13.5, width, 3)):
         b.append(T(28, (100 if wide else 96) + i * 20, line, "t", 14 if wide else 13.5, t["ink"]))
     return svg(W, H, t, "".join(b), f"{p['title']}: {p['blurb']}")
+
+
+def patents_card(items: list[dict], t: dict) -> str:
+    """items: [{title, number, tech}] -> one card listing the applications."""
+    W, row = 840, 64
+    H = 30 + row * len(items) + 8
+    b = []
+    for i, it in enumerate(items):
+        y = 30 + i * row
+        if i:
+            b.append(f'<line x1="28" x2="{W - 28}" y1="{y - 10}" y2="{y - 10}" stroke="{t["rule"]}"/>')
+        b.append(rosette(28, y + 2, 24, t["own"], t["field"]))
+        b.append(T(66, y + 18, fit(it["title"], "display", 18, 520), "d", 18, t["ink"]))
+        b.append(T(66, y + 38, it["tech"], "t", 13, t["slate"]))
+        b.append(T(W - 28, y + 14, "Application no.", "t", 12, t["slate"], "end"))
+        b.append(T(W - 28, y + 36, it["number"], "s", 19, t["ink"], "end", 'letter-spacing="0.5"'))
+    return svg(W, H, t, "".join(b), "Patent applications: " + ", ".join(f"{i['title']} {i['number']}" for i in items))

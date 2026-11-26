@@ -105,23 +105,8 @@ def build(cfg: dict, prs: list[dict], info: dict, now: datetime, out_dir: Path,
         md += ["### About me", ""]
         for para in cfg["about"]:
             md += [para, ""]
-    feats = cfg.get("featured", [])
-    if feats:
-        md += ["### Things I've built", ""]
-        for f in feats:
-            meta = info.get(f["repo"].lower(), {})
-            f = {**f, "stars": meta.get("stargazers_count", 0)}
-            stem = f"project-{slug(f['repo'].split('/')[1])}"
-            wide = bool(f.get("wide"))
-            for th, t in render.THEMES.items():
-                files[f"{stem}-{th}.svg"] = render.project_tile(f, t, wide=wide)
-            alt = f["title"] + (" (patent published)" if f.get("patent") else "")
-            md.append(f'<a href="https://github.com/{f["repo"]}">{picture(stem, alt, "100%" if wide else "49%")}</a>')
-            if wide:
-                md.append("")
-        md.append("")
     if tiles:
-        md += ["### Merged upstream", ""]
+        md += ["### Open source", ""]
         for i, g in enumerate(tiles):
             stem = f"merged-{slug(g['repo'])}"
             wide = i == 0
@@ -134,12 +119,35 @@ def build(cfg: dict, prs: list[dict], info: dict, now: datetime, out_dir: Path,
                 md.append("")
         md.append("")
     if review:
-        md += ["### In review", ""]
+        md += ["#### In review", ""]
         for p in sorted(review, key=lambda p: info.get(repo_of(p).lower(), {}).get("stargazers_count", 0),
                         reverse=True)[:6]:
             title = p["title"] if len(p["title"]) <= 90 else p["title"][:90].rsplit(" ", 1)[0] + "…"
             md.append(f"- [{repo_of(p)}#{p['number']}]({p['html_url']}): {title}")
         md.append("")
+    feats = cfg.get("featured", [])
+    if feats:
+        md += ["### Things I've built", ""]
+        for f in feats:
+            meta = info.get(f["repo"].lower(), {})
+            f = {**f, "stars": meta.get("stargazers_count", 0)}
+            stem = f"project-{slug(f['repo'].split('/')[1])}"
+            wide = bool(f.get("wide"))
+            for th, t in render.THEMES.items():
+                files[f"{stem}-{th}.svg"] = render.project_tile(f, t, wide=wide)
+            alt = f["title"] + (f" (patent pending, application no. {f['patent']})" if f.get("patent") else "")
+            md.append(f'<a href="https://github.com/{f["repo"]}">{picture(stem, alt, "100%" if wide else "49%")}</a>')
+            if wide:
+                md.append("")
+        md.append("")
+    pats = [{"title": f.get("patent_title", f["title"]), "number": f["patent"], "tech": f["tech"]}
+            for f in feats if f.get("patent")]
+    if pats:
+        md += [f"### {cfg.get('patents_heading', 'Patent applications')}", ""]
+        for th, t in render.THEMES.items():
+            files[f"patents-{th}.svg"] = render.patents_card(pats, t)
+        alt = "; ".join(f"{p['title']}: application no. {p['number']}" for p in pats)
+        md += [picture("patents", alt, "100%"), ""]
     md += [f"<sub>Rebuilt from the GitHub API every six hours. Last update {now:%Y-%m-%d}.</sub>", "", END]
 
     out_dir.mkdir(exist_ok=True)

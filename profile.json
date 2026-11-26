@@ -4,9 +4,9 @@
   "summary": "I build low-latency trading systems, and fix bugs in the AI and data tools teams run in production.",
   "about": [
     "I like building things that solve real problems. Watching an idea turn into something that actually runs is what gives me the kick, and it's what keeps me going when a bug has been winning for hours.",
-    "Most of my work sits where finance meets systems engineering. I build order books and matching engines, and chase the questions that matter in high-frequency trading: how fast it is, how predictable it is, and whether every state change can be replayed and checked.",
+    "Finance and low-latency systems are what I find most interesting. I'm drawn to the problems high-frequency trading firms work on: how fast a system is, how predictable it is, and whether every state change can be replayed and checked. My order book and matching engine is where I've started digging in.",
     "I also fix bugs upstream in open-source AI and data tooling, from agent frameworks to data pipelines, because reading other people's production code is the fastest way I know to get better at writing my own.",
-    "Three of my projects have published patents: Smart Flow Analysis and Trade Execution, Readease, and Dropr."
+    "Three of my projects have published patent applications: Smart Flow Analysis and Trade Execution, Readease, and Dropr."
   ],
   "featured": [
     {
@@ -21,27 +21,41 @@
       "title": "Smart flow analysis",
       "blurb": "Tracks institutional mutual fund flows, ranks stocks by alpha, and executes approved trades through Zerodha.",
       "tech": "React, FastAPI",
-      "patent": true
+      "patent": "202641095155",
+      "patent_title": "Smart Flow Analysis and Trade Execution"
     },
     {
       "repo": "AryanSingh2029/Readease",
       "title": "Readease",
       "blurb": "Helps students with dyslexia read class material: OCR, AI simplification, text-to-speech and translation.",
       "tech": "JavaScript",
-      "patent": true
+      "patent": "202641067191"
     },
     {
       "repo": "AryanSingh2029/Dropr",
       "title": "Dropr",
       "blurb": "Campus peer-to-peer delivery: students post errands, others pick them up, with live chat and order tracking.",
       "tech": "Flutter, Firebase",
-      "patent": true
+      "patent": "202641022702"
     },
     {
-      "repo": "AryanSingh2029/Databrick_hackathon",
-      "title": "Fund data pipeline",
-      "blurb": "Parses 134 mutual fund disclosure files into Delta tables for fund-level and cross-fund Pareto analysis.",
-      "tech": "Databricks, Delta"
+      "repo": "AryanSingh2029/Housesense",
+      "title": "HouseSense",
+      "blurb": "Real estate investment dashboard for Indian property: price prediction models, market visuals and investment scoring.",
+      "tech": "Python, ML, Streamlit"
+    },
+    {
+      "repo": "AryanSingh2029/Google-Pay-Finance-Tracker",
+      "title": "Google Pay finance tracker",
+      "blurb": "Upload a Google Takeout export and get daily, weekly and monthly spending views, with Gemini explaining the patterns.",
+      "tech": "Python, Gemini, Streamlit"
+    },
+    {
+      "repo": "AryanSingh2029/oneofus",
+      "title": "One of Us",
+      "blurb": "Mobile-first social deduction games: word, picture, question and GIF rounds where one player is the odd one out.",
+      "tech": "Next.js, TypeScript"
     }
-  ]
+  ],
+  "patents_heading": "Patent applications"
 }
