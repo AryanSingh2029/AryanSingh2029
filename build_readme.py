@@ -1,27 +1,26 @@
 #!/usr/bin/env python3
-"""Rebuild the open-source section of a GitHub profile README.
+"""Rebuild the profile README and its images from the GitHub API.
 
-Standalone (standard library only) so it can run as a GitHub Action in your
-profile repo (github.com/<you>/<you>). It replaces only the text between
-<!-- OSS:START --> and <!-- OSS:END -->, so the rest of your README stays yours.
+    python build_readme.py            # reads profile.json, writes assets/*.svg and README.md
 
-Usage:
-    python build_readme.py --user AryanSingh2029 --readme README.md
-    GITHUB_TOKEN=... python build_readme.py --user AryanSingh2029 --readme README.md
-
-Every number comes from GitHub search at build time, so it never drifts from the truth.
+Everything between <!-- OSS:START --> and <!-- OSS:END --> is generated.
+Text outside the markers is left alone. Edit profile.json to change your
+name, summary or featured projects.
 """
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
 import sys
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
+import render
+
+HERE = Path(__file__).resolve().parent
 API = "https://api.github.com"
 START, END = "<!-- OSS:START -->", "<!-- OSS:END -->"
 
@@ -29,103 +28,139 @@ START, END = "<!-- OSS:START -->", "<!-- OSS:END -->"
 def get(path: str, **params):
     url = f"{API}{path}?{urllib.parse.urlencode(params)}"
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "profile-readme"}
-    tok = os.environ.get("GITHUB_TOKEN")
-    if tok:
-        headers["Authorization"] = f"Bearer {tok}"
+    if os.environ.get("GITHUB_TOKEN"):
+        headers["Authorization"] = f"Bearer {os.environ['GITHUB_TOKEN']}"
     with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as r:
         return json.loads(r.read().decode())
 
 
-def search_prs(q: str, limit: int = 1000) -> list[dict]:
+def search_prs(user: str) -> list[dict]:
     out, page = [], 1
-    while len(out) < limit:
-        data = get("/search/issues", q=q, per_page=100, page=page)
-        out += data.get("items", [])
-        if len(data.get("items", [])) < 100:
-            break
+    while True:
+        items = get("/search/issues", q=f"is:pr author:{user}", per_page=100, page=page).get("items", [])
+        out += items
+        if len(items) < 100 or page >= 10:
+            return out
         page += 1
-    return out
 
 
-def stars_of(repos: set[str]) -> dict[str, int]:
-    """Stars for many repos, 5 per search query to stay well inside rate limits."""
-    out: dict[str, int] = {}
+def repo_info(repos: set[str]) -> dict[str, dict]:
+    out: dict[str, dict] = {}
     repos = sorted(repos)
     for i in range(0, len(repos), 5):
         q = " ".join(f"repo:{r}" for r in repos[i:i + 5])
         try:
             for it in get("/search/repositories", q=q, per_page=10).get("items", []):
-                out[it["full_name"].lower()] = it["stargazers_count"]
+                out[it["full_name"].lower()] = it
         except Exception as e:
-            print(f"stars lookup failed for {repos[i:i + 5]}: {e}", file=sys.stderr)
+            print(f"repo lookup failed for {repos[i:i + 5]}: {e}", file=sys.stderr)
     return out
 
 
-def fmt_stars(n: int) -> str:
-    return f"{n / 1000:.1f}k".replace(".0k", "k") if n >= 1000 else str(n)
+def repo_of(p: dict) -> str:
+    return p["repository_url"].split("/repos/")[1]
 
 
-def build(prs: list[dict], stars: dict[str, int], user: str, now: datetime,
-          max_rows: int = 12, min_stars: int = 50) -> str:
-    def repo(p):
-        return p["repository_url"].split("/repos/")[1]
+def picture(stem: str, alt: str, width: str) -> str:
+    return (f'<picture><source media="(prefers-color-scheme: dark)" srcset="assets/{stem}-dark.svg">'
+            f'<img src="assets/{stem}-light.svg" alt="{alt}" width="{width}"></picture>')
 
-    outside = [p for p in prs if repo(p).split("/")[0].lower() != user.lower()]
+
+def slug(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+
+def build(cfg: dict, prs: list[dict], info: dict, now: datetime, out_dir: Path,
+          max_tiles: int = 7, min_stars: int = 50) -> str:
+    user = cfg["user"]
+    outside = [p for p in prs if repo_of(p).split("/")[0].lower() != user.lower()]
     merged = [p for p in outside if p.get("pull_request", {}).get("merged_at")]
     review = [p for p in outside if p["state"] == "open"]
-    orgs = {repo(p).split("/")[0].lower() for p in merged}
-    merged_repos = {repo(p) for p in merged}
 
-    def s(p):
-        return stars.get(repo(p).lower(), 0)
+    # header data
+    first = min((datetime.fromisoformat(p["created_at"][:19]) for p in outside), default=now.replace(tzinfo=None))
+    start = (first - timedelta(days=3)).replace(hour=0, minute=0, second=0, microsecond=0)
+    end = now.replace(tzinfo=None)
+    series = render.depth_series(outside, start, end)
+    hdr = {"name": cfg["name"], "summary": cfg["summary"], "merged": len(merged), "review": len(review),
+           "orgs": len({repo_of(p).split("/")[0].lower() for p in merged}), "series": series}
 
-    lines = [START, ""]
-    lines.append(f"**{len(merged)} pull requests merged** into {len(merged_repos)} projects "
-                 f"across {len(orgs)} organisations, **{len(review)} in review**.")
-    big = sorted({repo(p) for p in merged if s(p) >= 1000}, key=lambda r: -stars.get(r.lower(), 0))
-    if big:
-        lines.append("")
-        lines.append("Merged into " + ", ".join(f"**{r}** ({fmt_stars(stars[r.lower()])}★)" for r in big[:6]) + ".")
+    files: dict[str, str] = {}
+    for th, t in render.THEMES.items():
+        files[f"header-{th}.svg"] = render.header(hdr, t)
 
-    shown = sorted([p for p in merged if s(p) >= min_stars],
-                   key=lambda p: (s(p), p["pull_request"]["merged_at"]), reverse=True)[:max_rows]
-    if shown:
-        lines += ["", "### Merged upstream", "", "| Project | Change | Merged |", "|---|---|---|"]
-        for p in shown:
-            title = re.sub(r"[|\n]", " ", p["title"])[:90]
-            lines.append(f"| [{repo(p)}](https://github.com/{repo(p)}) {fmt_stars(s(p))}★ "
-                         f"| [{title}]({p['html_url']}) | {p['pull_request']['merged_at'][:10]} |")
-    rv = sorted(review, key=lambda p: s(p), reverse=True)[:5]
-    if rv:
-        lines += ["", "### In review", ""]
-        lines += [f"- [{repo(p)}#{p['number']}]({p['html_url']}): {p['title'][:90]}" for p in rv]
-    lines += ["", f"<sub>Built from the GitHub API on {now:%Y-%m-%d}.</sub>", "", END]
-    return "\n".join(lines)
+    # merged tiles, grouped by project, biggest first
+    groups: dict[str, dict] = {}
+    for p in sorted(merged, key=lambda p: p["pull_request"]["merged_at"], reverse=True):
+        r = repo_of(p)
+        g = groups.setdefault(r, {"repo": r, "stars": info.get(r.lower(), {}).get("stargazers_count", 0),
+                                  "merged": 0, "titles": []})
+        g["merged"] += 1
+        g["titles"].append(p["title"])
+    tiles = sorted((g for g in groups.values() if g["stars"] >= min_stars),
+                   key=lambda g: (g["stars"], g["merged"]), reverse=True)[:max_tiles]
+
+    md = [START, "", picture("header", f"{cfg['name']}: {len(merged)} merged pull requests, {len(review)} in review", "100%"), ""]
+    if tiles:
+        md += ["### Merged upstream", ""]
+        for i, g in enumerate(tiles):
+            stem = f"merged-{slug(g['repo'])}"
+            wide = i == 0
+            for th, t in render.THEMES.items():
+                files[f"{stem}-{th}.svg"] = render.merged_tile(g, t, wide=wide)
+            link = (f"https://github.com/{g['repo']}/pulls?q="
+                    + urllib.parse.quote(f"is:pr author:{user} is:merged"))
+            md.append(f'<a href="{link}">{picture(stem, g["repo"], "100%" if wide else "49%")}</a>')
+            if wide:
+                md.append("")
+        md.append("")
+    if review:
+        md += ["### In review", ""]
+        for p in sorted(review, key=lambda p: info.get(repo_of(p).lower(), {}).get("stargazers_count", 0),
+                        reverse=True)[:6]:
+            title = p["title"] if len(p["title"]) <= 90 else p["title"][:90].rsplit(" ", 1)[0] + "…"
+            md.append(f"- [{repo_of(p)}#{p['number']}]({p['html_url']}): {title}")
+        md.append("")
+    feats = cfg.get("featured", [])
+    if feats:
+        md += ["### Things I've built", ""]
+        for f in feats:
+            meta = info.get(f["repo"].lower(), {})
+            f = {**f, "stars": meta.get("stargazers_count", 0)}
+            stem = f"project-{slug(f['repo'].split('/')[1])}"
+            for th, t in render.THEMES.items():
+                files[f"{stem}-{th}.svg"] = render.project_tile(f, t)
+            md.append(f'<a href="https://github.com/{f["repo"]}">{picture(stem, f["title"], "49%")}</a>')
+        md.append("")
+    md += [f"<sub>Rebuilt from the GitHub API every six hours. Last update {now:%Y-%m-%d}.</sub>", "", END]
+
+    out_dir.mkdir(exist_ok=True)
+    keep = set(files)
+    for old in out_dir.glob("*.svg"):
+        if old.name not in keep:
+            old.unlink()
+    for name, content in files.items():
+        (out_dir / name).write_text(content)
+    return "\n".join(md)
 
 
 def splice(readme: str, section: str) -> str:
     if START in readme and END in readme:
         return re.sub(re.escape(START) + r".*?" + re.escape(END), lambda _: section, readme, flags=re.S)
-    return readme.rstrip() + "\n\n## Open source\n\n" + section + "\n"
+    return section + "\n\n" + readme
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--user", required=True)
-    ap.add_argument("--readme", default="README.md")
-    ap.add_argument("--min-stars", type=int, default=50, help="hide merges into tiny repos from the table")
-    a = ap.parse_args()
-    prs = search_prs(f"is:pr author:{a.user}")
-    repos = {p["repository_url"].split("/repos/")[1] for p in prs}
-    section = build(prs, stars_of(repos), a.user, datetime.now(timezone.utc), min_stars=a.min_stars)
-    path = a.readme
-    old = open(path).read() if os.path.exists(path) else f"# Hi, I'm {a.user}\n"
+    cfg = json.loads((HERE / "profile.json").read_text())
+    prs = search_prs(cfg["user"])
+    repos = {repo_of(p) for p in prs} | {f["repo"] for f in cfg.get("featured", [])}
+    section = build(cfg, prs, repo_info(repos), datetime.now(timezone.utc), HERE / "assets")
+    path = HERE / "README.md"
+    old = path.read_text() if path.exists() else ""
     new = splice(old, section)
     if new != old:
-        open(path, "w").write(new)
-        print("README updated")
-    else:
-        print("README unchanged")
+        path.write_text(new)
+    print(f"README {'updated' if new != old else 'unchanged'}; {len(list((HERE / 'assets').glob('*.svg')))} images")
 
 
 if __name__ == "__main__":

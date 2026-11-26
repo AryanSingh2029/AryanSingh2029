@@ -1,0 +1,31 @@
+{
+  "user": "AryanSingh2029",
+  "name": "Aryan Singh",
+  "summary": "I fix bugs in open-source Python, data and AI tooling, and build trading systems from the order book up.",
+  "featured": [
+    {
+      "repo": "AryanSingh2029/OrderBook",
+      "title": "Order book engine",
+      "blurb": "Multi-instrument C++20 limit order book with price-time priority, deterministic replay and latency benchmarks.",
+      "tech": "C++20"
+    },
+    {
+      "repo": "AryanSingh2029/Smart-Flow-Analysis-and-Trade-Execution",
+      "title": "Smart flow analysis",
+      "blurb": "Tracks institutional mutual fund flows, ranks stocks by alpha, and executes approved trades through Zerodha.",
+      "tech": "React, FastAPI"
+    },
+    {
+      "repo": "AryanSingh2029/Databrick_hackathon",
+      "title": "Fund data pipeline",
+      "blurb": "Parses 134 mutual fund disclosure files into Delta tables for fund-level and cross-fund Pareto analysis.",
+      "tech": "Databricks, Delta"
+    },
+    {
+      "repo": "AryanSingh2029/Readease",
+      "title": "Readease",
+      "blurb": "Helps students with dyslexia read class material: OCR, AI simplification, text-to-speech and translation.",
+      "tech": "JavaScript"
+    }
+  ]
+}

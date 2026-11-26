@@ -1,4 +1,4 @@
-name: Update open-source section
+name: Update profile
 on:
   schedule:
     - cron: "17 */6 * * *"   # every 6 hours
@@ -13,14 +13,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Rebuild README section
+      - run: pip install fonttools brotli
+      - name: Rebuild README and images
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python build_readme.py --user AryanSingh2029 --readme README.md
+        run: python build_readme.py
       - name: Commit if changed
         run: |
-          git diff --quiet && exit 0
+          git add -A
+          git diff --cached --quiet && exit 0
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "Update open-source section"
+          git commit -m "Update profile"
           git push
