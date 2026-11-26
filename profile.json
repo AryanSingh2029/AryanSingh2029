@@ -56,8 +56,7 @@
       "blurb": "Real estate investment dashboard for Indian property: predictive pricing, ROI analysis and market visuals.",
       "tech": "Python, machine learning, Streamlit",
       "metric": "ML",
-      "unit": "price prediction",
-      "status": "Live"
+      "unit": "price prediction"
     },
     {
       "repo": "AryanSingh2029/Google-Pay-Finance-Tracker",
@@ -65,8 +64,7 @@
       "blurb": "Upload a Google Takeout export and get daily, weekly and monthly spending views with AI explanations.",
       "tech": "Python, Gemini, Streamlit",
       "metric": "Gemini",
-      "unit": "spending analysis",
-      "status": "Live"
+      "unit": "spending analysis"
     },
     {
       "repo": "AryanSingh2029/oneofus",
@@ -74,7 +72,8 @@
       "blurb": "Mobile-first social deduction games: word, picture, question, GIF and Mafia rounds, one odd player out.",
       "tech": "Next.js, React, TypeScript, Tailwind",
       "metric": "5",
-      "unit": "game modes"
+      "unit": "game modes",
+      "status": "Live"
     }
   ],
   "patents_heading": "Published patents"
