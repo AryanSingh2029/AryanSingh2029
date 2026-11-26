@@ -9,6 +9,7 @@ name, summary or featured projects.
 """
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -71,7 +72,7 @@ def slug(s: str) -> str:
 
 
 def build(cfg: dict, prs: list[dict], info: dict, now: datetime, out_dir: Path,
-          max_tiles: int = 7, min_stars: int = 50) -> str:
+          max_rows: int = 10) -> str:
     user = cfg["user"]
     outside = [p for p in prs if repo_of(p).split("/")[0].lower() != user.lower()]
     merged = [p for p in outside if p.get("pull_request", {}).get("merged_at")]
@@ -89,42 +90,51 @@ def build(cfg: dict, prs: list[dict], info: dict, now: datetime, out_dir: Path,
     for th, t in render.THEMES.items():
         files[f"header-{th}.svg"] = render.header(hdr, t)
 
-    # merged tiles, grouped by project, biggest first
+    # per-project rows: merged / in review / closed
     groups: dict[str, dict] = {}
-    for p in sorted(merged, key=lambda p: p["pull_request"]["merged_at"], reverse=True):
+    for p in outside:
         r = repo_of(p)
-        g = groups.setdefault(r, {"repo": r, "stars": info.get(r.lower(), {}).get("stargazers_count", 0),
-                                  "merged": 0, "titles": []})
-        g["merged"] += 1
-        g["titles"].append(p["title"])
-    tiles = sorted((g for g in groups.values() if g["stars"] >= min_stars),
-                   key=lambda g: (g["stars"], g["merged"]), reverse=True)[:max_tiles]
+        g = groups.setdefault(r, {"repo": r, "merged": 0, "review": 0, "closed": 0,
+                                  "stars": info.get(r.lower(), {}).get("stargazers_count", 0),
+                                  "desc": (info.get(r.lower(), {}).get("description") or "").strip()})
+        if p.get("pull_request", {}).get("merged_at"):
+            g["merged"] += 1
+        elif p["state"] == "open":
+            g["review"] += 1
+        else:
+            g["closed"] += 1
+    rows = sorted(groups.values(), key=lambda g: (g["merged"], g["review"], g["stars"]), reverse=True)[:max_rows]
+    totals = {"merged": len(merged), "review": len(review),
+              "orgs": hdr["orgs"], "repos": len(groups)}
 
     md = [START, "", picture("header", f"{cfg['name']}: {len(merged)} merged pull requests, {len(review)} in review", "100%"), ""]
     if cfg.get("about"):
         md += ["### About me", ""]
         for para in cfg["about"]:
             md += [para, ""]
-    if tiles:
+    if rows:
         md += ["### Open source", ""]
-        for i, g in enumerate(tiles):
-            stem = f"merged-{slug(g['repo'])}"
-            wide = i == 0
-            for th, t in render.THEMES.items():
-                files[f"{stem}-{th}.svg"] = render.merged_tile(g, t, wide=wide)
-            link = (f"https://github.com/{g['repo']}/pulls?q="
-                    + urllib.parse.quote(f"is:pr author:{user} is:merged"))
-            md.append(f'<a href="{link}">{picture(stem, g["repo"], "100%" if wide else "49%")}</a>')
-            if wide:
-                md.append("")
-        md.append("")
-    if review:
-        md += ["#### In review", ""]
-        for p in sorted(review, key=lambda p: info.get(repo_of(p).lower(), {}).get("stargazers_count", 0),
-                        reverse=True)[:6]:
-            title = p["title"] if len(p["title"]) <= 90 else p["title"][:90].rsplit(" ", 1)[0] + "…"
-            md.append(f"- [{repo_of(p)}#{p['number']}]({p['html_url']}): {title}")
-        md.append("")
+        for th, t in render.THEMES.items():
+            files[f"opensource-{th}.svg"] = render.oss_panel(totals, rows, t)
+        md += [f'<a href="https://github.com/pulls?q=' + urllib.parse.quote(f"is:pr author:{user}")
+               + f'">{picture("opensource", f"{len(merged)} merged, {len(review)} in review", "100%")}</a>', ""]
+
+        def item(p, when, verb):
+            title = p["title"] if len(p["title"]) <= 80 else p["title"][:80].rsplit(" ", 1)[0] + "…"
+            return (f'<li><a href="{p["html_url"]}"><code>{repo_of(p)}#{p["number"]}</code></a> '
+                    f'{html.escape(title)} <sub>{verb} {when[:10]}</sub></li>')
+        recent = sorted(merged, key=lambda p: p["pull_request"]["merged_at"], reverse=True)
+        opened = sorted(review, key=lambda p: p["created_at"], reverse=True)
+        left = "".join(item(p, p["pull_request"]["merged_at"], "merged") for p in recent[:5])
+        right = "".join(item(p, p["created_at"], "opened") for p in opened[:5])
+        if len(recent) > 5:
+            left += f"<li>and {len(recent) - 5} more merged</li>"
+        if len(opened) > 5:
+            right += f"<li>and {len(opened) - 5} more open</li>"
+        md += ['<table><tr><th align="left" width="50%">Recently merged</th>'
+               '<th align="left" width="50%">In review now</th></tr>',
+               f'<tr><td valign="top"><ul>{left}</ul></td><td valign="top"><ul>{right or "<li>Nothing open</li>"}</ul></td></tr></table>', ""]
+
     feats = cfg.get("featured", [])
     if feats:
         md += ["### Things I've built", ""]
@@ -134,8 +144,9 @@ def build(cfg: dict, prs: list[dict], info: dict, now: datetime, out_dir: Path,
             stem = f"project-{slug(f['repo'].split('/')[1])}"
             wide = bool(f.get("wide"))
             for th, t in render.THEMES.items():
-                files[f"{stem}-{th}.svg"] = render.project_tile(f, t, wide=wide)
-            alt = f["title"] + (f" (patent pending, application no. {f['patent']})" if f.get("patent") else "")
+                files[f"{stem}-{th}.svg"] = (render.metric_card(f, t, wide=wide) if f.get("metric")
+                                             else render.project_tile(f, t, wide=wide))
+            alt = f["title"] + (f" (patent published, application no. {f['patent']})" if f.get("patent") else "")
             md.append(f'<a href="https://github.com/{f["repo"]}">{picture(stem, alt, "100%" if wide else "49%")}</a>')
             if wide:
                 md.append("")

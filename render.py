@@ -247,7 +247,7 @@ def project_tile(p: dict, t: dict, wide: bool = False) -> str:
     b.append(T(28, 34, p["tech"], "t", 13, t["slate"]))
     right = W - 24
     if p.get("patent"):
-        label = "Patent pending"
+        label = "Patent published"
         lw = text_width(label, "strong", 12.5)
         b.append(T(right, 34, label, "s", 12.5, t["own"], "end"))
         b.append(rosette(right - lw - 20, 20, 15, t["own"], t["field"]))
@@ -276,3 +276,88 @@ def patents_card(items: list[dict], t: dict) -> str:
         b.append(T(W - 28, y + 14, "Application no.", "t", 12, t["slate"], "end"))
         b.append(T(W - 28, y + 36, it["number"], "s", 19, t["ink"], "end", 'letter-spacing="0.5"'))
     return svg(W, H, t, "".join(b), "Patent applications: " + ", ".join(f"{i['title']} {i['number']}" for i in items))
+
+
+# ------------------------------------------------------------------ open-source panel
+
+def oss_panel(totals: dict, rows: list[dict], t: dict) -> str:
+    """totals: merged, review, orgs, repos. rows: [{repo, desc, stars, merged, review, closed}]"""
+    W = 840
+    top, row_h = 122, 56
+    H = top + row_h * len(rows) + 14
+    b = []
+    cols = [("merged", "merged upstream", t["merged"]), ("review", "in review", t["review"]),
+            ("orgs", "organisations", t["ink"]), ("repos", "repositories", t["ink"])]
+    for i, (k, label, col) in enumerate(cols):
+        x = 32 + i * 200
+        b.append(T(x, 62, str(totals[k]), "d", 36, col))
+        b.append(T(x, 86, label, "t", 13, t["slate"]))
+    b.append(f'<line x1="32" x2="{W - 32}" y1="{top - 14}" y2="{top - 14}" stroke="{t["rule"]}"/>')
+    bx0, bx1 = 452, 690
+    scale = max((r["merged"] + r["review"] + r["closed"]) for r in rows) if rows else 1
+    for i, r in enumerate(rows):
+        y = top + i * row_h
+        name_w = 300
+        name = fit(r["repo"], "strong", 15, name_w)
+        b.append(T(32, y + 18, name, "s", 15, t["ink"]))
+        sx = 32 + text_width(name, "strong", 15) + 12
+        if r["stars"]:
+            b.append(icon(STAR, sx, y + 6, 12, t["review"]))
+            b.append(T(sx + 16, y + 17, fmt_stars(r["stars"]), "s", 12, t["slate"]))
+        if r.get("desc"):
+            b.append(T(32, y + 38, fit(r["desc"], "text", 12.5, 390), "t", 12.5, t["slate"]))
+        # stacked bar
+        b.append(f'<rect x="{bx0}" y="{y + 10}" width="{bx1 - bx0}" height="7" rx="3.5" fill="{t["rule"]}" fill-opacity="0.45"/>')
+        x = bx0
+        for k, col in (("merged", t["merged"]), ("review", t["review"]), ("closed", t["slate"])):
+            if r[k]:
+                w = (bx1 - bx0) * r[k] / scale
+                op = ' fill-opacity="0.55"' if k == "closed" else ""
+                b.append(f'<rect x="{x:.1f}" y="{y + 10}" width="{max(w - 2, 3):.1f}" height="7" rx="3.5" fill="{col}"{op}/>')
+                x += w
+        b.append(T(W - 32, y + 18, f"{r['merged']} merged", "s", 13, t["merged"] if r["merged"] else t["slate"], "end"))
+        sub = (f"{r['review']} in review" if r["review"] else
+               f"{r['closed']} closed" if r["closed"] else "no open work")
+        b.append(T(W - 32, y + 37, sub, "t", 12, t["review"] if r["review"] else t["slate"], "end"))
+    return svg(W, H, t, "".join(b), f"Open source: {totals['merged']} merged, {totals['review']} in review "
+                                     f"across {totals['orgs']} organisations")
+
+
+# ------------------------------------------------------------------ metric-led project card
+
+def pill(x_right: float, y: float, label: str, col: str, t: dict) -> str:
+    w = text_width(label, "strong", 11.5) + 30
+    x = x_right - w
+    return (f'<rect x="{x:.1f}" y="{y}" width="{w:.1f}" height="22" rx="11" fill="{col}" fill-opacity="0.12"/>'
+            f'<circle cx="{x + 12:.1f}" cy="{y + 11}" r="3.5" fill="{col}"/>'
+            + T(x + 21, y + 15.5, label, "s", 11.5, col))
+
+
+def metric_card(p: dict, t: dict, wide: bool = False) -> str:
+    W, H = (840, 200) if wide else (412, 196)
+    b = [f'<rect x="0" y="0" width="5" height="{H}" fill="{t["own"]}"/>']
+    status = p.get("status")
+    col = {"Patent published": t["own"], "Live": t["merged"], "Benchmarked": t["merged"]}.get(status, t["slate"])
+    pw = (text_width(status, "strong", 11.5) + 40) if status else 0
+    b.append(T(28, 36, fit(p["title"], "display", 16, W - 56 - pw), "d", 16, t["ink"]))
+    if status:
+        if status == "Patent published":
+            w = text_width(status, "strong", 11.5) + 34
+            x = W - 24 - w
+            b.append(f'<rect x="{x:.1f}" y="19" width="{w:.1f}" height="22" rx="11" fill="{col}" fill-opacity="0.12"/>')
+            b.append(rosette(x + 6, 22, 15, col, t["field"]))
+            b.append(T(x + 25, 34.5, status, "s", 11.5, col))
+        else:
+            b.append(pill(W - 24, 19, status, col, t))
+    big, unit = p["metric"], p.get("unit", "")
+    bs = 44 if wide else 38
+    b.append(T(28, 96, big, "d", bs, t["ink"]))
+    if unit:
+        b.append(T(28 + text_width(big, "display", bs) + 10, 96, unit, "t", 16, t["slate"]))
+    lines = wrap(p["blurb"], "text", 13.5, (W - 56) if not wide else 760, 2)
+    for i, line in enumerate(lines):
+        b.append(T(28, 124 + i * 19, line, "t", 13.5, t["ink"]))
+    fy = H - 22
+    b.append(f'<line x1="28" x2="{W - 24}" y1="{fy - 18}" y2="{fy - 18}" stroke="{t["rule"]}"/>')
+    b.append(T(28, fy, p["tech"], "t", 12, t["slate"]))
+    return svg(W, H, t, "".join(b), f"{p['title']}: {big} {unit}. {p['blurb']}")
