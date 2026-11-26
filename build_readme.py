@@ -101,6 +101,25 @@ def build(cfg: dict, prs: list[dict], info: dict, now: datetime, out_dir: Path,
                    key=lambda g: (g["stars"], g["merged"]), reverse=True)[:max_tiles]
 
     md = [START, "", picture("header", f"{cfg['name']}: {len(merged)} merged pull requests, {len(review)} in review", "100%"), ""]
+    if cfg.get("about"):
+        md += ["### About me", ""]
+        for para in cfg["about"]:
+            md += [para, ""]
+    feats = cfg.get("featured", [])
+    if feats:
+        md += ["### Things I've built", ""]
+        for f in feats:
+            meta = info.get(f["repo"].lower(), {})
+            f = {**f, "stars": meta.get("stargazers_count", 0)}
+            stem = f"project-{slug(f['repo'].split('/')[1])}"
+            wide = bool(f.get("wide"))
+            for th, t in render.THEMES.items():
+                files[f"{stem}-{th}.svg"] = render.project_tile(f, t, wide=wide)
+            alt = f["title"] + (" (patent published)" if f.get("patent") else "")
+            md.append(f'<a href="https://github.com/{f["repo"]}">{picture(stem, alt, "100%" if wide else "49%")}</a>')
+            if wide:
+                md.append("")
+        md.append("")
     if tiles:
         md += ["### Merged upstream", ""]
         for i, g in enumerate(tiles):
@@ -120,17 +139,6 @@ def build(cfg: dict, prs: list[dict], info: dict, now: datetime, out_dir: Path,
                         reverse=True)[:6]:
             title = p["title"] if len(p["title"]) <= 90 else p["title"][:90].rsplit(" ", 1)[0] + "…"
             md.append(f"- [{repo_of(p)}#{p['number']}]({p['html_url']}): {title}")
-        md.append("")
-    feats = cfg.get("featured", [])
-    if feats:
-        md += ["### Things I've built", ""]
-        for f in feats:
-            meta = info.get(f["repo"].lower(), {})
-            f = {**f, "stars": meta.get("stargazers_count", 0)}
-            stem = f"project-{slug(f['repo'].split('/')[1])}"
-            for th, t in render.THEMES.items():
-                files[f"{stem}-{th}.svg"] = render.project_tile(f, t)
-            md.append(f'<a href="https://github.com/{f["repo"]}">{picture(stem, f["title"], "49%")}</a>')
         md.append("")
     md += [f"<sub>Rebuilt from the GitHub API every six hours. Last update {now:%Y-%m-%d}.</sub>", "", END]
 

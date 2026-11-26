@@ -225,13 +225,24 @@ def merged_tile(p: dict, t: dict, wide: bool = False) -> str:
     return svg(W, H, t, "".join(b), f"{p['repo']}: {count}")
 
 
-def project_tile(p: dict, t: dict) -> str:
-    W, H = 412, 150
+SEAL = "M8 0l1.6 1.2 2-.1.6 1.9 1.6 1.2-.6 1.9.6 1.9-1.6 1.2-.6 1.9-2-.1L8 11.2 6.4 10l-2 .1-.6-1.9L2.2 7l.6-1.9-.6-1.9 1.6-1.2.6-1.9 2 .1zM5 12.6l-.9 3.4L6 15l1 1.6.6-3.6zm6 0l-.9 3.4L12 15l1 1.6.6-3.6z"
+
+
+def project_tile(p: dict, t: dict, wide: bool = False) -> str:
+    W, H = (840, 150) if wide else (412, 160)
     b = [f'<rect x="0" y="0" width="5" height="{H}" fill="{t["own"]}"/>']
     b.append(T(28, 34, p["tech"], "t", 13, t["slate"]))
-    if p.get("stars"):
-        b.append(T(W - 24, 34, fmt_stars(p["stars"]), "s", 13, t["ink"], "end"))
-    b.append(T(28, 66, fit(p["title"], "display", 21, W - 56), "d", 21, t["ink"]))
-    for i, line in enumerate(wrap(p["blurb"], "text", 13.5, W - 56, 3)):
-        b.append(T(28, 96 + i * 19, line, "t", 13.5, t["ink"]))
+    right = W - 24
+    if p.get("patent"):
+        label = "Patent published"
+        lw = text_width(label, "strong", 12.5)
+        b.append(T(right, 34, label, "s", 12.5, t["own"], "end"))
+        b.append(icon(SEAL, right - lw - 20, 21, 15, t["own"]))
+    elif p.get("stars"):
+        b.append(T(right, 34, fmt_stars(p["stars"]), "s", 13, t["ink"], "end"))
+    size = 24 if wide else 21
+    b.append(T(28, 68 if wide else 66, fit(p["title"], "display", size, W - 56), "d", size, t["ink"]))
+    width = (W - 56) if not wide else 620
+    for i, line in enumerate(wrap(p["blurb"], "text", 14 if wide else 13.5, width, 3)):
+        b.append(T(28, (100 if wide else 96) + i * 20, line, "t", 14 if wide else 13.5, t["ink"]))
     return svg(W, H, t, "".join(b), f"{p['title']}: {p['blurb']}")

@@ -1,31 +1,47 @@
 {
   "user": "AryanSingh2029",
   "name": "Aryan Singh",
-  "summary": "I fix bugs in open-source Python, data and AI tooling, and build trading systems from the order book up.",
+  "summary": "I build low-latency trading systems, and fix bugs in the AI and data tools teams run in production.",
+  "about": [
+    "I like building things that solve real problems. Watching an idea turn into something that actually runs is what gives me the kick, and it's what keeps me going when a bug has been winning for hours.",
+    "Most of my work sits where finance meets systems engineering. I build order books and matching engines, and chase the questions that matter in high-frequency trading: how fast it is, how predictable it is, and whether every state change can be replayed and checked.",
+    "I also fix bugs upstream in open-source AI and data tooling, from agent frameworks to data pipelines, because reading other people's production code is the fastest way I know to get better at writing my own.",
+    "Three of my projects have published patents: Smart Flow Analysis and Trade Execution, Readease, and Dropr."
+  ],
   "featured": [
     {
       "repo": "AryanSingh2029/OrderBook",
-      "title": "Order book engine",
-      "blurb": "Multi-instrument C++20 limit order book with price-time priority, deterministic replay and latency benchmarks.",
-      "tech": "C++20"
+      "title": "Order book and matching engine",
+      "blurb": "Multi-instrument C++20 limit order book with price-time priority, deterministic event replay, queue-position tracking and latency benchmarks.",
+      "tech": "C++20",
+      "wide": true
     },
     {
       "repo": "AryanSingh2029/Smart-Flow-Analysis-and-Trade-Execution",
       "title": "Smart flow analysis",
       "blurb": "Tracks institutional mutual fund flows, ranks stocks by alpha, and executes approved trades through Zerodha.",
-      "tech": "React, FastAPI"
+      "tech": "React, FastAPI",
+      "patent": true
+    },
+    {
+      "repo": "AryanSingh2029/Readease",
+      "title": "Readease",
+      "blurb": "Helps students with dyslexia read class material: OCR, AI simplification, text-to-speech and translation.",
+      "tech": "JavaScript",
+      "patent": true
+    },
+    {
+      "repo": "AryanSingh2029/Dropr",
+      "title": "Dropr",
+      "blurb": "Campus peer-to-peer delivery: students post errands, others pick them up, with live chat and order tracking.",
+      "tech": "Flutter, Firebase",
+      "patent": true
     },
     {
       "repo": "AryanSingh2029/Databrick_hackathon",
       "title": "Fund data pipeline",
       "blurb": "Parses 134 mutual fund disclosure files into Delta tables for fund-level and cross-fund Pareto analysis.",
       "tech": "Databricks, Delta"
-    },
-    {
-      "repo": "AryanSingh2029/Readease",
-      "title": "Readease",
-      "blurb": "Helps students with dyslexia read class material: OCR, AI simplification, text-to-speech and translation.",
-      "tech": "JavaScript"
     }
   ]
 }
