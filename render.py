@@ -108,11 +108,12 @@ def fmt_stars(n: int) -> str:
     return str(n)
 
 
-def svg(w, h, t, body, title, gap=14):
+def svg(w, h, t, body, title, gap=14, css=""):
     """A card of w x h with a transparent strip of `gap` px below it, so stacked
     images in the README get breathing room. Everything is clipped to the card."""
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h + gap}" viewBox="0 0 {w} {h + gap}" '
             f'role="img" aria-label="{escape(title)}"><title>{escape(title)}</title>{style(t)}'
+            f'{"<style>" + css + "</style>" if css else ""}'
             f'<defs><clipPath id="card"><rect x=".5" y=".5" width="{w - 1}" height="{h - 1}" rx="10"/></clipPath></defs>'
             f'<rect x=".5" y=".5" width="{w - 1}" height="{h - 1}" rx="10" fill="{t["field"]}"/>'
             f'<g clip-path="url(#card)">{body}</g>'
@@ -195,7 +196,16 @@ def header(data: dict, t: dict) -> str:
     mv, rv = pts_m[-1][1], pts_r[-1][1]
     b.append(f'<circle cx="{X(n - 1):.1f}" cy="{Y(mv):.1f}" r="3.5" fill="{t["merged"]}"/>')
     b.append(T(cx0, cy0 - 18, "Merged upstream, with open pull requests stacked on top", "t", 12, t["slate"]))
-    return svg(W, H, t, "".join(b), f"{data['name']}: {data['merged']} merged pull requests, {data['review']} in review")
+    # One-time draw-in: a curtain in the card colour shrinks toward the right,
+    # revealing the chart left to right. Skipped for people who prefer reduced motion.
+    b.append(f'<rect class="curtain" x="{cx0 - 4}" y="{cy0 - 8}" width="{cx1 - cx0 + 10}" '
+             f'height="{cy1 - cy0 + 12}" fill="{t["field"]}"/>')
+    css = ("@keyframes reveal{from{transform:scaleX(1)}to{transform:scaleX(0)}}"
+           ".curtain{transform-box:fill-box;transform-origin:right center;"
+           "animation:reveal 1.8s cubic-bezier(.45,0,.2,1) .4s both}"
+           "@media (prefers-reduced-motion:reduce){.curtain{display:none}}")
+    return svg(W, H, t, "".join(b), f"{data['name']}: {data['merged']} merged pull requests, {data['review']} in review",
+               css=css)
 
 
 # ------------------------------------------------------------------ tiles
@@ -333,7 +343,35 @@ def pill(x_right: float, y: float, label: str, col: str, t: dict) -> str:
             + T(x + 21, y + 15.5, label, "s", 11.5, col))
 
 
+def histogram(h: dict, x0: float, y0: float, x1: float, y1: float, t: dict) -> str:
+    """Bars on a log scale so the tail stays visible. h: {title, buckets: [[label, count]], p50, p99}"""
+    import math
+    b = [T(x0, y0 - 12, h["title"], "t", 12, t["slate"])]
+    buckets = h["buckets"]
+    n = len(buckets)
+    gap = 6
+    bw = (x1 - x0 - gap * (n - 1)) / n
+    top = math.log10(max(c for _, c in buckets) + 1)
+    base = y1 - 18
+    for i, (label, count) in enumerate(buckets):
+        hgt = (base - y0 - 16) * math.log10(count + 1) / top
+        x = x0 + i * (bw + gap)
+        col = t["own"] if i <= h["p99"] else t["slate"]
+        b.append(f'<rect x="{x:.1f}" y="{base - hgt:.1f}" width="{bw:.1f}" height="{hgt:.1f}" rx="2" fill="{col}"'
+                 f'{"" if i <= h["p99"] else " fill-opacity=" + chr(34) + "0.6" + chr(34)}/>')
+        b.append(T(x + bw / 2, y1, label, "t", 10.5, t["slate"], "middle"))
+    for key in ("p50", "p99"):
+        i = h[key]
+        x = x0 + i * (bw + gap) + bw / 2
+        b.append(f'<line x1="{x:.1f}" x2="{x:.1f}" y1="{y0 - 2}" y2="{y0 + 8}" stroke="{t["review"]}" stroke-width="1.5"/>')
+        b.append(T(x + 5, y0 + 6, key, "s", 11, t["review"]))
+    b.append(f'<line x1="{x0}" x2="{x1}" y1="{base:.1f}" y2="{base:.1f}" stroke="{t["rule"]}"/>')
+    return "".join(b)
+
+
 def metric_card(p: dict, t: dict, wide: bool = False) -> str:
+    if wide and p.get("histogram"):
+        return metric_card_hist(p, t)
     W, H = (840, 200) if wide else (412, 196)
     b = [f'<rect x="0" y="0" width="5" height="{H}" fill="{t["own"]}"/>']
     status = p.get("status")
@@ -358,6 +396,26 @@ def metric_card(p: dict, t: dict, wide: bool = False) -> str:
     for i, line in enumerate(lines):
         b.append(T(28, 124 + i * 19, line, "t", 13.5, t["ink"]))
     fy = H - 22
+    b.append(f'<line x1="28" x2="{W - 24}" y1="{fy - 18}" y2="{fy - 18}" stroke="{t["rule"]}"/>')
+    b.append(T(28, fy, p["tech"], "t", 12, t["slate"]))
+    return svg(W, H, t, "".join(b), f"{p['title']}: {big} {unit}. {p['blurb']}")
+
+
+def metric_card_hist(p: dict, t: dict) -> str:
+    """Wide card: the number and description on the left, the latency histogram on the right."""
+    W, H = 840, 232
+    b = [f'<rect x="0" y="0" width="5" height="{H}" fill="{t["own"]}"/>']
+    status = p.get("status")
+    b.append(T(28, 36, p["title"], "d", 16, t["ink"]))
+    if status:
+        b.append(pill(W - 24, 19, status, t["merged"], t))
+    big, unit = p["metric"], p.get("unit", "")
+    b.append(T(28, 100, big, "d", 48, t["ink"]))
+    b.append(T(28 + text_width(big, "display", 48) + 10, 100, unit, "t", 16, t["slate"]))
+    for i, line in enumerate(wrap(p["blurb"], "text", 13.5, 360, 3)):
+        b.append(T(28, 132 + i * 19, line, "t", 13.5, t["ink"]))
+    b.append(histogram(p["histogram"], 452, 78, W - 28, 176, t))
+    fy = H - 20
     b.append(f'<line x1="28" x2="{W - 24}" y1="{fy - 18}" y2="{fy - 18}" stroke="{t["rule"]}"/>')
     b.append(T(28, fy, p["tech"], "t", 12, t["slate"]))
     return svg(W, H, t, "".join(b), f"{p['title']}: {big} {unit}. {p['blurb']}")

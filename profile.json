@@ -12,12 +12,51 @@
     {
       "repo": "AryanSingh2029/OrderBook",
       "title": "Order book and matching engine",
-      "blurb": "C++20 limit order book with price-time priority and deterministic replay. 500,000 synthetic events at 5.75M events/s, p99 625 ns.",
+      "blurb": "C++20 limit order book with price-time priority and deterministic replay. 500,000 synthetic events at 5.56M events/s, p99 584 ns.",
       "tech": "C++20, intrusive slot pool, latency histograms, event replay",
       "wide": true,
       "metric": "125",
       "unit": "ns p50 per event",
-      "status": "Benchmarked"
+      "status": "Benchmarked",
+      "histogram": {
+        "title": "Latency per event, 500,000 events, log scale",
+        "buckets": [
+          [
+            "≤100ns",
+            226294
+          ],
+          [
+            "250ns",
+            195523
+          ],
+          [
+            "500ns",
+            69453
+          ],
+          [
+            "1µs",
+            7596
+          ],
+          [
+            "2µs",
+            932
+          ],
+          [
+            "5µs",
+            78
+          ],
+          [
+            "10µs",
+            98
+          ],
+          [
+            ">10µs",
+            26
+          ]
+        ],
+        "p50": 1,
+        "p99": 3
+      }
     },
     {
       "repo": "AryanSingh2029/Smart-Flow-Analysis-and-Trade-Execution",
